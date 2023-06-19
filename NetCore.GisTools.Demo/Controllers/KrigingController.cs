@@ -1,10 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
+using NetCore.GisTools.Demo.Model;
 using NetCore.GisTools.Model;
 
-using System;
-using System.Diagnostics;
-using System.Threading.Tasks;
+using System.Linq;
 
 namespace NetCore.GisTools.Demo.Controllers
 {
@@ -13,28 +12,18 @@ namespace NetCore.GisTools.Demo.Controllers
     public class KrigingController : ControllerBase
     {
         [HttpPost]
-        public async Task<IActionResult> Post([FromBody] KrigingInputModel model)
+        public object Demo([FromBody] KrigingInput data)
         {
-            Console.WriteLine();
-            Console.WriteLine($"kriging @{DateTime.Now.TimeOfDay}");
+            var variogram = Kriging.Train(
+                data.points.Select(i => new GeoDoubleData(i.x, i.y, i.value)).ToArray(),
+                data.sigma2,
+                data.alpha);
 
-            var stopwatch = new Stopwatch();
+            var polygons = data.polygons
+                .Select(py => new GeoPolygon(py.points.Select(p => new LocationPoint(p.x, p.y)).ToArray())).ToArray();
+            var gird = Kriging.Grid(polygons, variogram, data.width);
 
-            // train
-            stopwatch.Start();
-            var variogram = await Kriging.TrainAsync(model, 0, 100);
-
-            stopwatch.Stop();
-            Console.WriteLine($"train cost: {stopwatch.Elapsed}");
-
-            //grid
-            stopwatch.Restart();
-            var grid = Kriging.Grid(model, variogram, (model.MaxY - model.MinY) / 500);
-
-            stopwatch.Stop();
-            Console.WriteLine($"grid cost: {stopwatch.Elapsed}");
-
-            return Ok(grid);
+            return Ok(gird);
         }
     }
 }
