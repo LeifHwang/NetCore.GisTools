@@ -4,49 +4,109 @@ using System.Diagnostics;
 namespace NetCore.GisTools.Model
 {
     [DebuggerDisplay("({Longitude},{Latitude})")]
-    public class LocationPoint
+    public class GeoPoint
     {
-        public double Longitude { get; set; }
-        public double Latitude { get; set; }
+        public double Longitude { get; }
+        public double Latitude { get; }
 
-        public LocationPoint() { }
-        public LocationPoint(double x, double y)
+        public GeoPoint(double longitude, double latitude)
         {
-            Longitude = x;
-            Latitude = y;
-        }
+            if (longitude < -180 || longitude > 180)
+                throw new ArgumentOutOfRangeException(nameof(longitude), "invalid longitude");
+            if (latitude < -90 || latitude > 90)
+                throw new ArgumentOutOfRangeException(nameof(latitude), "invalid latitude");
 
-        public double Distance<T2>(GeoData<T2> other)
-        {
-            return Math.Pow(Math.Pow(Longitude - other.Longitude, 2) +
-                        Math.Pow(Latitude - other.Latitude, 2), 0.5);
+            Longitude = longitude;
+            Latitude = latitude;
         }
     }
 
     public class GeoPolygon
     {
-        public GeoPolygon(LocationPoint[] points)
+        public GeoPoint[] Points { get; }
+
+        public GeoPolygon(GeoPoint[] points)
         {
+            if (points.Length < 3)
+                throw new ArgumentOutOfRangeException(nameof(points), "At least three points are required!");
+
             Points = points;
         }
 
-        public LocationPoint[] Points { get; }
 
-        public bool Pip(double x, double y) => Pip(new LocationPoint(x, y));
-        public bool Pip(LocationPoint testPoitn)
+        public GeoExtend GetExtend()
         {
+            double xMin = Points[0].Longitude, xMax = Points[0].Longitude;
+            double yMin = Points[0].Latitude, yMax = Points[0].Latitude;
+
+            for (int i = 1; i < Points.Length; i++)
+            {
+                var point = Points[i];
+
+                xMin = Math.Min(xMin, point.Longitude);
+                xMax = Math.Max(xMax, point.Longitude);
+
+                yMin = Math.Min(yMin, point.Latitude);
+                yMax = Math.Max(yMax, point.Latitude);
+            }
+
+            return new GeoExtend(xMin, xMax, yMin, yMax);
+        }
+
+        public bool Pip(double x, double y) => Pip(new GeoPoint(x, y));
+        public bool Pip(GeoPoint testPoitn)
+        {
+            var result = false;
             for (int i = 0, j = Points.Length - 1; i < Points.Length; j = i++)
             {
-                var current = Points[i];
-                var previous = Points[j];
+                var x1 = Points[i].Longitude;
+                var y1 = Points[i].Latitude;
+                var x2 = Points[j].Longitude;
+                var y2 = Points[j].Latitude;
 
-                if (((current.Latitude > testPoitn.Latitude) != (previous.Latitude > testPoitn.Latitude)) &&
-                    (testPoitn.Longitude < ((previous.Longitude - current.Longitude) * (testPoitn.Latitude - current.Latitude) / (previous.Latitude - current.Latitude)) + current.Longitude))
+                if (((y1 > testPoitn.Latitude) != (y2 > testPoitn.Latitude)) &&
+                    (testPoitn.Longitude < (x2 - x1) * (testPoitn.Latitude - y1) / (y2 - y1) + x1))
                 {
-                    return true;
+                    result = !result;
                 }
+
             }
-            return false;
+            return result;
+        }
+    }
+
+    [DebuggerDisplay("{LngMin},{LngMax};{LatMin},{LatMax}")]
+    public class GeoExtend
+    {
+        public double LngMin { get; private set; }
+        public double LngMax { get; private set; }
+
+        public double LatMin { get; private set; }
+        public double LatMax { get; private set; }
+
+        public double Width => LngMax - LngMin;
+        public double Height => LatMax - LatMin;
+
+        public GeoExtend(double xMin, double xMax, double yMin, double yMax)
+        {
+            LngMin = xMin;
+            LngMax = xMax;
+
+            LatMin = yMin;
+            LatMax = yMax;
+        }
+
+        /// <summary>
+        /// merge other rectangle
+        /// </summary>
+        /// <remarks>will expand current extend when the other rec intersect or outside</remarks>
+        public void Union(GeoExtend other)
+        {
+            LngMin = Math.Min(LngMin, other.LngMin);
+            LngMax = Math.Max(LngMax, other.LngMax);
+
+            LatMin = Math.Min(LatMin, other.LatMin);
+            LatMax = Math.Max(LatMax, other.LatMax);
         }
     }
 }

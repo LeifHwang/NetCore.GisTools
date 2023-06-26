@@ -20,10 +20,14 @@ namespace NetCore.GisTools.Demo.Controllers
                 data.alpha);
 
             var polygons = data.polygons
-                .Select(py => new GeoPolygon(py.points.Select(p => new LocationPoint(p.x, p.y)).ToArray())).ToArray();
+                .Select(py => new GeoPolygon(py.points.Select(p => new GeoPoint(p.x, p.y)).ToArray())).ToArray();
             var gird = Kriging.Grid(polygons, variogram, data.width);
 
-            return Ok(gird);
+            var obj = gird.ForPlot(variogram);
+
+            return Ok(obj);
         }
+
+        
     }
 }
